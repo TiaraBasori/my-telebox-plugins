@@ -1,10 +1,10 @@
 {
   "quote": {
     "url": "https://github.com/TiaraBasori/my-telebox-plugins/blob/main/quote/quote.ts?raw=true",
-    "desc": "yvlu/quote造谣版"
+    "desc": "造谣版 quote"
   },
   "yvlu": {
     "url": "https://github.com/TiaraBasori/my-telebox-plugins/blob/main/yvlu/yvlu.ts?raw=true",
-    "desc": "yvlu/quote造谣版"
+    "desc": "造谣版 yvlu"
   }
 }
