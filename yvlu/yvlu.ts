@@ -1275,8 +1275,8 @@ class YvluPlugin extends Plugin {
                 username:
                   photo && shouldShowAvatar ? username || undefined : undefined,
                 photo,
-                emoji_status: shouldShowAvatar
-                  ? (emojiStatusPayload || (emojiStatus ? { custom_emoji_id: String(emojiStatus) } : undefined))
+                emoji_status: shouldShowAvatar && emojiStatus
+                  ? String(emojiStatus)
                   : undefined,
               },
               text: fabricateText && i === 0 ? fabricateText : (message.message || ""),
