@@ -812,20 +812,6 @@ function detectQuoteImageExt(buffer: Buffer): "webp" | "png" | "webm" {
   const preview = buffer.subarray(0, 120).toString("utf8").replace(/\s+/g, " ").trim();
   throw new Error(`quote-api 返回了非图片/视频数据${preview ? `：${preview.slice(0, 100)}` : ""}`);
 }
-    buffer[0] === 0x1a &&
-    buffer[1] === 0x45 &&
-    buffer[2] === 0xdf &&
-    buffer[3] === 0xa3
-  ) {
-    // Verify it's WebM by checking for "webm" string after EBML header
-    const headerStr = buffer.subarray(0, Math.min(32, buffer.length)).toString("ascii");
-    if (headerStr.includes("webm")) return "webm";
-    // Even without explicit "webm" string, EBML header with video codecs likely means WebM
-    return "webm";
-  }
-  const preview = buffer.subarray(0, 120).toString("utf8").replace(/\s+/g, " ").trim();
-  throw new Error(`quote-api 返回了非图片/视频数据${preview ? `：${preview.slice(0, 100)}` : ""}`);
-}
 
 // 调用quote-api生成语录
 async function generateQuote(

@@ -133,7 +133,9 @@ function quoteResourcesReady(): boolean {
   const quoteDir = path.join(quotePluginDir(), "quote");
   const versionFile = path.join(quoteDir, ".version");
   let currentVersion = "";
-  try { currentVersion = fs.readFileSync(versionFile, "utf8").trim(); } catch (_) {}
+  try { currentVersion = fs.readFileSync(versionFile, "utf8").trim(); } catch {
+    console.debug("[quote] version file read failed");
+  }
   if (currentVersion !== QUOTE_PLUGIN_VERSION) return false;
   if (QUOTE_DEP_FILES.some((rel) => !fs.existsSync(path.join(quoteDir, rel)))) return false;
   if (QUOTE_ASSET_FILES.some((rel) => !fs.existsSync(path.join(QUOTE_ASSETS_DIR, rel)))) return false;
@@ -145,7 +147,9 @@ async function ensureQuoteAssets(): Promise<void> {
   const quoteDir = path.join(quotePluginDir(), "quote");
   const versionFile = path.join(quoteDir, ".version");
   let currentVersion = "";
-  try { currentVersion = fs.readFileSync(versionFile, "utf8").trim(); } catch (_) {}
+  try { currentVersion = fs.readFileSync(versionFile, "utf8").trim(); } catch {
+    console.debug("[quote] version file read failed");
+  }
 
   if (currentVersion !== QUOTE_PLUGIN_VERSION) {
     const missingVendor = QUOTE_DEP_FILES.filter((rel) => !fs.existsSync(path.join(quoteDir, rel)));
@@ -603,7 +607,10 @@ async function ensureFullEntity(client: any, entity: any): Promise<any> {
     try {
       const full = await withTimeout(client.getEntity(entity), QUOTE_RPC_TIMEOUT_MS, "ensureFullEntity");
       return full || entity;
-    } catch { return entity; }
+    } catch (err) {
+    console.debug("[quote] getSender failed:", err?.message || err);
+    return entity;
+  }
   }
   return entity;
 }
@@ -618,7 +625,9 @@ async function senderEntity(msg: Api.Message): Promise<any | undefined> {
       if (key) entityCache.set(key, sender);
       return sender;
     }
-  } catch (_) {}
+  } catch (err) {
+    console.debug("[quote] getSender failed:", err?.message || err);
+  }
   const entity = await getPeerEntity((msg as any).client, peer);
   if (key) entityCache.set(key, entity);
   return entity;
@@ -922,7 +931,9 @@ async function downloadMediaToBuffer(client: any, target: any): Promise<Buffer |
     console.warn("quote media download failed", err?.message || err);
     return undefined;
   } finally {
-    try { if (fs.existsSync(mediaPath)) fs.unlinkSync(mediaPath); } catch (_) {}
+    try { if (fs.existsSync(mediaPath)) fs.unlinkSync(mediaPath); } catch (err) {
+      console.debug("[quote] cleanup mediaPath failed:", err?.message || err);
+    }
   }
 }
 
@@ -1104,7 +1115,9 @@ async function probeAnimatedInfo(buffer: Buffer): Promise<{ fps: number; duratio
     console.warn("quote animated probe failed", err?.message || err);
     return { fps: 12, duration: 2 };
   } finally {
-    try { if (fs.existsSync(input)) fs.unlinkSync(input); } catch (_) {}
+    try { if (fs.existsSync(input)) fs.unlinkSync(input); } catch (err) {
+      console.debug("[quote] cleanup input failed:", err?.message || err);
+    }
   }
 }
 
@@ -1112,9 +1125,12 @@ function looksLikeAnimatedEmoji(buffer: Buffer | undefined): boolean {
   if (!buffer || buffer.length < 16) return false;
   const head = buffer.subarray(0, 64).toString("utf8");
   if (isAnimatedRasterBuffer(buffer)) return true;
-  if (head.includes("WEBM")) return true;
+  // WebM (EBML header + "webm" string): 0x1A 0x45 0xDF 0xA3 + "webm" in first 64 bytes
+  if (buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3 && head.includes("webm")) return true;
+  // Lottie JSON: starts with {"v" or has "layers"
   if (head.trimStart().startsWith("{\"v\"") || head.includes("\"layers\"")) return true;
-  if (buffer[0] === 0x1f && buffer[1] === 0x8b) return true; // .tgs gzip/lottie
+  // .tgs gzip/lottie
+  if (buffer[0] === 0x1f && buffer[1] === 0x8b) return true;
   return false;
 }
 
@@ -1142,7 +1158,9 @@ async function convertAnimatedEmojiToPng(buffer: Buffer): Promise<Buffer | undef
   } catch (_) {
     // keep fallback quiet; normal static buffers and unsupported tgs land here
   } finally {
-    try { if (fs.existsSync(input)) fs.unlinkSync(input); } catch (_) {}
+    try { if (fs.existsSync(input)) fs.unlinkSync(input); } catch (err) {
+      console.debug("[quote] cleanup input failed:", err?.message || err);
+    }
     try { if (fs.existsSync(output)) fs.unlinkSync(output); } catch (_) {}
   }
 
@@ -1177,8 +1195,12 @@ async function extractAnimatedFrames(buffer: Buffer, size: number, frameCount: n
     console.warn("quote animated frame extract failed", err?.message || err);
     return [];
   } finally {
-    try { if (fs.existsSync(input)) fs.unlinkSync(input); } catch (_) {}
-    try { if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
+    try { if (fs.existsSync(input)) fs.unlinkSync(input); } catch (err) {
+      console.debug("[quote] cleanup input failed:", err?.message || err);
+    }
+    try { if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true }); } catch (err) {
+      console.debug("[quote] cleanup dir failed:", err?.message || err);
+    }
   }
 }
 
@@ -1272,7 +1294,9 @@ async function probeWebmAlpha(buffer: Buffer): Promise<string> {
   } catch (err: any) {
     return `probe-failed:${err?.message || err}`;
   } finally {
-    try { if (fs.existsSync(input)) fs.unlinkSync(input); } catch (_) {}
+    try { if (fs.existsSync(input)) fs.unlinkSync(input); } catch (err) {
+      console.debug("[quote] cleanup input failed:", err?.message || err);
+    }
   }
 }
 
@@ -1347,8 +1371,12 @@ async function encodeFramesToWebm(frames: Buffer[], fps = TG_STICKER_FPS): Promi
     quoteTiming("webm.encode_total", t0, { frames: frames.length, bytes: best?.length || 0, crf: bestCrf });
     return best || Buffer.alloc(0);
   } finally {
-    for (const output of outputs) try { if (fs.existsSync(output)) fs.unlinkSync(output); } catch (_) {}
-    try { if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
+    for (const output of outputs) try { if (fs.existsSync(output)) fs.unlinkSync(output); } catch (err) {
+      console.debug("[quote] cleanup output failed:", err?.message || err);
+    }
+    try { if (fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true }); } catch (err) {
+      console.debug("[quote] cleanup dir failed:", err?.message || err);
+    }
   }
 }
 async function generateAnimatedQuoteWebm(quoteMessages: any[], args: QuoteArgs): Promise<{ image: Buffer; ext: string; width?: number; height?: number; duration?: number }> {
