@@ -908,12 +908,16 @@ async function waitForStableFile(filePath: string, timeoutMs = 8000): Promise<Bu
           lastSize = size;
         }
       }
-    } catch (_) {}
+    } catch (err) {
+      console.debug("[quote] waitForStableFile loop error:", err?.message || err);
+    }
     await sleepMs(120);
   }
   try {
     if (fs.existsSync(filePath) && fs.statSync(filePath).size > 0) return fs.readFileSync(filePath);
-  } catch (_) {}
+  } catch (err) {
+      console.debug("[quote] waitForStableFile loop error:", err?.message || err);
+    }
   return undefined;
 }
 
@@ -1161,7 +1165,9 @@ async function convertAnimatedEmojiToPng(buffer: Buffer): Promise<Buffer | undef
     try { if (fs.existsSync(input)) fs.unlinkSync(input); } catch (err) {
       console.debug("[quote] cleanup input failed:", err?.message || err);
     }
-    try { if (fs.existsSync(output)) fs.unlinkSync(output); } catch (_) {}
+    try { if (fs.existsSync(output)) fs.unlinkSync(output); } catch (err) {
+      console.debug("[quote] waitForStableFile loop error:", err?.message || err);
+    }
   }
 
   try {
@@ -1468,7 +1474,9 @@ async function generateAnimatedQuoteWebm(quoteMessages: any[], args: QuoteArgs):
     const probe = await loadImage(rendered[0]);
     width = probe.width;
     height = probe.height;
-  } catch (_) {}
+  } catch (err) {
+      console.debug("[quote] waitForStableFile loop error:", err?.message || err);
+    }
   const encoded = await encodeFramesToWebm(rendered, fps);
   const tprobe = Date.now();
   const alphaProbe = await probeWebmAlpha(encoded);
@@ -1784,7 +1792,9 @@ async function editProgress(msg: Api.Message, text: string, parseMode?: "html" |
         QUOTE_RPC_TIMEOUT_MS,
         "editProgress.reply",
       );
-    } catch (_) {}
+    } catch (err) {
+      console.debug("[quote] waitForStableFile loop error:", err?.message || err);
+    }
   }
 }
 
