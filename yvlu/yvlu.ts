@@ -614,6 +614,31 @@ const commandName = `${mainPrefix}${pluginName}`;
 // 标签与正文之间禁止换行：<blockquote expandable>内容</blockquote>
 const helpFold = (title: string, body: string) =>
   `${title}\n<blockquote expandable>${body}</blockquote>`;
+const YVLU_OPTION_TOKENS = new Set(["r", "reply", "s", "webp", "image", "png", "stories"]);
+
+/** 选项区：命令首行、独立 "--" 之前的部分（换行 / "--" 之后都是造谣正文）。 */
+function yvluOptionHead(raw: string): string {
+  const firstLine = raw.split("\n", 1)[0];
+  const sep = firstLine.search(/(^|\s)--(\s|$)/);
+  return sep === -1 ? firstLine : firstLine.slice(0, sep);
+}
+
+/** 从完整命令文本提取造谣正文：跳过命令名与首行选项，按原文截取（保留换行与连续空格）。 */
+function extractFabricateText(raw: string): string | undefined {
+  const firstBreak = raw.indexOf("\n");
+  const re = /\S+/g;
+  re.exec(raw); // 命令本身
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(raw))) {
+    const token = m[0];
+    if (firstBreak !== -1 && m.index > firstBreak) return raw.slice(m.index).trim() || undefined;
+    if (token === "--") return raw.slice(m.index + 2).trim() || undefined;
+    if (YVLU_OPTION_TOKENS.has(token.toLowerCase()) || /^\d+$/.test(token)) continue;
+    return raw.slice(m.index).trim() || undefined;
+  }
+  return undefined;
+}
+
 const help_text = [
   helpFold(
     `- 不包含回复`,
@@ -623,6 +648,14 @@ const help_text = [
   helpFold(
     `- 包含回复`,
     `使用 <code>${commandName} r [消息数]</code> 回复一条消息(支持选择部分引用回复) ⚠️ 不得超过 5 条`,
+  ),
+  ``,
+  helpFold(
+    `- 造谣`,
+    [
+      `使用 <code>${commandName} 任意文字</code> 回复一条消息，以对方身份显示自定义文字（保留换行）`,
+      `正文以选项词开头时（如 r、数字），用 <code>--</code> 或换行分隔：<code>${commandName} r -- 2 个人</code>`,
+    ].join("\n"),
   ),
   ``,
   helpFold(
@@ -929,7 +962,9 @@ class YvluPlugin extends Plugin {
   > = {
     yvlu: async (msg: Api.Message, trigger?: Api.Message) => {
       const start = Date.now();
-      const args = msg.message.split(/\s+/);
+      const rawCommandText: string = msg.message || "";
+      // 选项只从首行 / "--" 之前解析，避免正文里的数字被当成消息数
+      const args = yvluOptionHead(rawCommandText).split(/\s+/);
       let count = 1;
       let r = false;
       let valid = false;
@@ -970,25 +1005,8 @@ class YvluPlugin extends Plugin {
         // 处理保存贴纸/图片到贴纸包的逻辑
         await this.handleSaveStickerToSet(msg);
       } else if (valid) {
-        // 造谣模式：第一个非选项参数起，后续内容全部按原文保留。
-        const optionArgs = args.slice(1);
-        let fabricateText: string | undefined;
-        for (let i = 0; i < optionArgs.length; i++) {
-          const value = optionArgs[i].toLowerCase();
-          const isOption =
-            value === "r" ||
-            value === "reply" ||
-            value === "s" ||
-            value === "webp" ||
-            value === "image" ||
-            value === "png" ||
-            value === "stories" ||
-            /^\d+$/.test(value);
-          if (!isOption) {
-            fabricateText = optionArgs.slice(i).join(" ");
-            break;
-          }
-        }
+        // 造谣模式：首行第一个非选项参数起（或换行 / "--" 之后），按原文保留正文。
+        const fabricateText = extractFabricateText(rawCommandText);
 
         let replied = await safeGetReplyMessage(msg);
         if (!replied) {
